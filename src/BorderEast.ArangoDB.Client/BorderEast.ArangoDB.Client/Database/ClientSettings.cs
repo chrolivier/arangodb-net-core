@@ -51,24 +51,24 @@ namespace BorderEast.ArangoDB.Client.Database
             IsDebug = isDebug;
         }
 
-        public JsonSerializerSettings JsonSettings { get; set; }
+        public JsonSerializerSettings JsonSettings { get; }
 
-        public string ServerAddress { get; set; }
+        public string ServerAddress { get; }
 
-        public int ServerPort {get;set;}
+        public int ServerPort {get; }
 
-        public ProtocolType Protocol { get; set; }
+        public ProtocolType Protocol { get; }
 
         public HttpClient HTTPClient { get; set; }
 
-        public string DatabaseName { get; set; }
+        public string DatabaseName { get; }
 
         public NetworkCredential SystemCredential { get; set; }
 
         public NetworkCredential DatabaseCredential { get; set; }
 
-        public bool AutoCreate { get; set; }
+        public bool AutoCreate { get; }
 
-        public bool IsDebug { get; set; }
+        public bool IsDebug { get; }
     }
 }

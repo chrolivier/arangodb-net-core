@@ -42,7 +42,7 @@ namespace BorderEast.ArangoDB.Client
         /// Convience method to get the default database.
         /// </summary>
         /// <returns></returns>
-        public ArangoDatabase DB() {
+        public IArangoDatabase DB() {
             if (!databases.ContainsKey(DEFAULT)) {
                 return null;
             }
@@ -55,7 +55,7 @@ namespace BorderEast.ArangoDB.Client
         /// </summary>
         /// <param name="database"></param>
         /// <returns></returns>
-        public ArangoDatabase DB(string database) {
+        public IArangoDatabase DB(string database) {
             if (!databases.ContainsKey(database)) {
                 throw new DatabaseNotFoundException(Res.Msg.ArangoDbNotFound);
             }
@@ -67,7 +67,7 @@ namespace BorderEast.ArangoDB.Client
         /// </summary>
         /// <param name="databaseSettings"></param>
         /// <returns></returns>
-        public ArangoDatabase InitDB(ClientSettings databaseSettings) {
+        public IArangoDatabase InitDB(ClientSettings databaseSettings) {
             if (databases.ContainsKey(databaseSettings.DatabaseName)) {
                 throw new DatabaseExistsException(Res.Msg.ArangoDbAlreadyExists);
             }

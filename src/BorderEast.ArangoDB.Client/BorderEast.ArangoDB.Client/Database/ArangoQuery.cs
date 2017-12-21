@@ -17,37 +17,40 @@ namespace BorderEast.ArangoDB.Client.Database
     public class ArangoQuery<T>
     {
         private AQLQuery query;
-        private ConnectionPool<IConnection> connectionPool;
-        private ArangoDatabase database;
+        private readonly JsonSerializerSettings jsonSettings;
+        private readonly bool isDebug;
+        public Payload Payload { get; private set; }
 
-
-        internal ArangoQuery(string queryStr, ConnectionPool<IConnection> connectionPool, ArangoDatabase database) {
-            this.connectionPool = connectionPool;
-            this.database = database;
+        internal ArangoQuery(string queryStr, JsonSerializerSettings jsonSettings, bool isDebug) {
+            this.jsonSettings = jsonSettings;
+            this.isDebug = isDebug;
             query = new AQLQuery()
             {
                 Query = queryStr
             };
+            CreatePayload();
         }
 
-        internal ArangoQuery(string queryStr, Dictionary<string, object> parameters, 
-            ConnectionPool<IConnection> connectionPool, ArangoDatabase database) 
+        internal ArangoQuery(string queryStr, Dictionary<string, object> parameters, JsonSerializerSettings jsonSettings, bool isDebug) 
         {
-            this.connectionPool = connectionPool;
-            this.database = database;
+            this.jsonSettings = jsonSettings;
+            this.isDebug = isDebug;
             query = new AQLQuery()
             {
                 Query = queryStr,
                 Parameters = parameters
             };
+            CreatePayload();
         }
 
-        internal ArangoQuery(AQLQuery aqlQuery, ConnectionPool<IConnection> connectionPool, ArangoDatabase database) {
-            this.connectionPool = connectionPool;
-            this.database = database;
+        internal ArangoQuery(AQLQuery aqlQuery, JsonSerializerSettings jsonSettings, bool isDebug) {
+            this.jsonSettings = jsonSettings;
+            this.isDebug = isDebug;
             query = aqlQuery;
+            CreatePayload();
         }
 
+        /*
         /// <summary>
         /// Add parameters to the query
         /// </summary>
@@ -57,33 +60,21 @@ namespace BorderEast.ArangoDB.Client.Database
             this.query.Parameters = parameters;
             return this;
         }
+        */
 
-        /// <summary>
-        /// Retrieve as List
-        /// </summary>
-        /// <returns></returns>
-        public async Task<List<T>> ToListAsync() {
-            
-            Payload payload = new Payload()
+        private void CreatePayload()
+        {
+            Payload = new Payload()
             {
-                Content = JsonConvert.SerializeObject(query, database.databaseSettings.JsonSettings),
+                Content = JsonConvert.SerializeObject(query, jsonSettings),
                 Method = HttpMethod.Post,
                 Path = "_api/cursor"
             };
-
-            if (database.databaseSettings.IsDebug) {
-                payload.Path += "?query=" + Convert.ToBase64String(Encoding.UTF8.GetBytes(query.Query));
+            
+            if (isDebug) {
+                Payload.Path += "?query=" + Convert.ToBase64String(Encoding.UTF8.GetBytes(query.Query));
             }
-
-            var result = await database.GetResultAsync(payload);
-            if (result == null) {
-                return null;
-            }
-
-            var json = JsonConvert.DeserializeObject<AQLResult<T>>(result.Content);
-            return json.Result;
         }
-
 
     }  
 }

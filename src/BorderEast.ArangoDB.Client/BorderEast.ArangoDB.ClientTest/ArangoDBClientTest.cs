@@ -26,7 +26,7 @@ namespace BorderEast.ArangoDB.ClientTest
             var client = MockSetup.GetClient();
             MockSetup newsetup = new MockSetup();
             var dbs = newsetup.settings;
-            dbs.DatabaseName = "newtest";
+            //dbs.DatabaseName = "newtest";
 
             // non-existant database should be created and returned
             Assert.IsType<ArangoDatabase>(client.InitDB(dbs));

@@ -18,7 +18,7 @@ namespace BorderEast.ArangoDB.ClientTest
         public void AQLSelectEntity() {
 
             var client = MockSetup.GetClient();
-            var user = client.DB().Query<User>("for u in User return u").ToListAsync().Result.First();
+            var user = client.DB().Query<User>("for u in User return u").Result.First();
             
             Assert.IsType<User>(user);
         }

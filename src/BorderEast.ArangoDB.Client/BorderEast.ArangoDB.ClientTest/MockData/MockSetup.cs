@@ -13,18 +13,17 @@ namespace BorderEast.ArangoDB.ClientTest.MockData
     {
         public MockHttpMessageHandler mockHttp = new MockHttpMessageHandler();
         public ArangoClient client = ArangoClient.Client();
-        public ClientSettings settings = new ClientSettings()
-        {
-            DatabaseName = "_system",
-            Protocol = ProtocolType.HTTP,
-            ServerAddress = "localhost",
-            ServerPort = 8529,
-            SystemCredential = new System.Net.NetworkCredential("root", Environment.GetEnvironmentVariable("USERNAME")),
-            DatabaseCredential = new System.Net.NetworkCredential("client-test", "client-test"),
-            AutoCreate = true,
-            HTTPClient = null,
-            IsDebug = true
-        };
+        public ClientSettings settings = new ClientSettings(
+                databaseName: "_system",
+                protocolType: ProtocolType.HTTP,
+                serverAddress: "localhost",
+                serverPort: 8529,
+                systemPassword: Environment.GetEnvironmentVariable("USERNAME"),
+                databaseUsername: "client-test",
+                databasePassword: "client-test",
+                autoCreate: true,
+                isDebug: true
+            );
 
         public static ArangoClient GetClient() {
             MockSetup setup = new MockSetup();

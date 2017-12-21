@@ -12,21 +12,21 @@ namespace BorderEast.ArangoDB.Client {
         /// Convience method to get the default database.
         /// </summary>
         /// <returns></returns>
-        ArangoDatabase DB();
+        IArangoDatabase DB();
 
         /// <summary>
         /// Get database by name
         /// </summary>
         /// <param name="database"></param>
         /// <returns></returns>
-        ArangoDatabase DB(string database);
+        IArangoDatabase DB(string database);
 
         /// <summary>
         /// Initialize a new database, does not actually create the db in Arango
         /// </summary>
         /// <param name="databaseSettings"></param>
         /// <returns></returns>
-        ArangoDatabase InitDB(ClientSettings databaseSettings);
+        IArangoDatabase InitDB(ClientSettings databaseSettings);
 
         /// <summary>
         /// Setup your default database

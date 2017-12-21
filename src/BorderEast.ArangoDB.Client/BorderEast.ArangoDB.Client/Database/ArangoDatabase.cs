@@ -18,10 +18,10 @@ namespace BorderEast.ArangoDB.Client.Database
     /// <summary>
     /// Public methods for interacting with ArangoDB
     /// </summary>
-    public class ArangoDatabase
+    public class ArangoDatabase : IArangoDatabase
     {
-        internal ClientSettings databaseSettings;
-        private ConnectionPool<IConnection> connectionPool;
+        public ClientSettings DatabaseSettings { get; }
+        private readonly ConnectionPool<IConnection> connectionPool;
 
         /// <summary>
         /// 
@@ -29,7 +29,7 @@ namespace BorderEast.ArangoDB.Client.Database
         /// <param name="databaseSettings"></param>
         /// <param name="connectionPool"></param>
         public ArangoDatabase(ClientSettings databaseSettings, ConnectionPool<IConnection> connectionPool) {
-            this.databaseSettings = databaseSettings;
+            DatabaseSettings = databaseSettings;
             this.connectionPool = connectionPool;
         }
 
@@ -72,7 +72,7 @@ namespace BorderEast.ArangoDB.Client.Database
 
             Payload payload = new Payload()
             {
-                Content = JsonConvert.SerializeObject(collection, databaseSettings.JsonSettings),
+                Content = JsonConvert.SerializeObject(collection, DatabaseSettings.JsonSettings),
                 Method = HttpMethod.Post,
                 Path = "_api/collection"
             };
@@ -98,8 +98,8 @@ namespace BorderEast.ArangoDB.Client.Database
         /// <typeparam name="T">Entity class</typeparam>
         /// <param name="query">AQL query text</param>
         /// <returns>ArangoQuery of T</returns>
-        public ArangoQuery<T> Query<T>(string query) {
-            return Query<T>(query, null);
+        public async Task<List<T>> Query<T>(string query) {
+            return await Query<T>(query, null);
         }
 
         /// <summary>
@@ -109,9 +109,9 @@ namespace BorderEast.ArangoDB.Client.Database
         /// <param name="query">AQL query text</param>
         /// <param name="parameters">Dynamic object of parmeters, use JSON names (_key instead of Key)</param>
         /// <returns>ArangoQuery of T</returns>
-        public ArangoQuery<T> Query<T>(string query, dynamic parameters) {
+        public async Task<List<T>> Query<T>(string query, dynamic parameters) {
             Dictionary<string, object> dParams = DynamicUtil.DynamicToDict(parameters);
-            return Query<T>(query, dParams);
+            return await Query<T>(query, dParams);
         }
 
         /// <summary>
@@ -120,13 +120,15 @@ namespace BorderEast.ArangoDB.Client.Database
         /// <typeparam name="T">Entity class</typeparam>
         /// <param name="query">AQL query text</param>
         /// <param name="parameters">Dictionary of parmeters, use JSON names (_key instead of Key)</param>
-        /// <returns>ArangoQuery of T</returns>
-        public ArangoQuery<T> Query<T>(string query, Dictionary<string, object> parameters) {
-            return new ArangoQuery<T>(query, parameters, connectionPool, this);
+        /// <returns>List of entities</returns>
+        public async Task<List<T>> Query<T>(string query, Dictionary<string, object> parameters) {
+            var arangoQuery = new ArangoQuery<T>(query, parameters, DatabaseSettings.JsonSettings, DatabaseSettings.IsDebug);
+            return await ExecuteQuery(arangoQuery);
         }
 
-        private ArangoQuery<T> Query<T>(AQLQuery query) {
-            return new ArangoQuery<T>(query, connectionPool, this);
+        private async Task<List<T>> Query<T>(AQLQuery query) {
+            var arangoQuery = new ArangoQuery<T>(query, DatabaseSettings.JsonSettings, DatabaseSettings.IsDebug);
+            return await ExecuteQuery(arangoQuery);
         }
 
         #endregion
@@ -135,7 +137,7 @@ namespace BorderEast.ArangoDB.Client.Database
         #region get
 
         public JsonSerializerSettings GetJsonSettings() {
-            return databaseSettings.JsonSettings;
+            return DatabaseSettings.JsonSettings;
         }
 
         /// <summary>
@@ -158,7 +160,7 @@ namespace BorderEast.ArangoDB.Client.Database
             if (string.IsNullOrWhiteSpace(collection))
                 throw new ArgumentException("Value cannot be null or whitespace.", nameof(collection));
             return await Query<string>("for x in @@col return x._key",
-                new Dictionary<string, object> { { "@col", collection } }).ToListAsync();
+                new Dictionary<string, object> { { "@col", collection } });
         }
 
         /// <summary>
@@ -228,7 +230,7 @@ namespace BorderEast.ArangoDB.Client.Database
             if (fk.IsForeignKey) {
                 var q = BuildFKQuery(fk, collection, new { _key = key });
 
-                var r = await Query<T>(q).ToListAsync();
+                var r = await Query<T>(q);
                 return r.FirstOrDefault();
             }
 
@@ -274,10 +276,10 @@ namespace BorderEast.ArangoDB.Client.Database
             if (fk.IsForeignKey) {
                 var q = BuildFKQuery(fk, collection);
 
-                return await Query<T>(q).ToListAsync();
+                return await Query<T>(q);
             }
 
-            return await Query<T>(string.Format("FOR x IN {0} RETURN x", collection)).ToListAsync();
+            return await Query<T>(string.Format("FOR x IN {0} RETURN x", collection));
         }
 
         #endregion
@@ -345,7 +347,6 @@ namespace BorderEast.ArangoDB.Client.Database
             return q;
         }
 
-        // TODO: implement for named collections
         private ForeignKey HasForeignKey(Type t) {
             ForeignKey fk = new ForeignKey();
             // get custom CollectionAttribute
@@ -407,14 +408,14 @@ namespace BorderEast.ArangoDB.Client.Database
 
             Payload payload = new Payload()
             {
-                Content = JsonConvert.SerializeObject(item, databaseSettings.JsonSettings),
+                Content = JsonConvert.SerializeObject(item, DatabaseSettings.JsonSettings),
                 Method = method,
                 Path = string.Format("_api/document/{0}/{1}?mergeObjects=false&returnNew=true", collection, key)
             };
 
             var result = await GetResultAsync(payload);
             
-            var json = JsonConvert.DeserializeObject<UpdatedDocument<T>>(result.Content, databaseSettings.JsonSettings);
+            var json = JsonConvert.DeserializeObject<UpdatedDocument<T>>(result.Content, DatabaseSettings.JsonSettings);
             return json;
         }
 
@@ -482,14 +483,14 @@ namespace BorderEast.ArangoDB.Client.Database
             try {
                 Payload payload = new Payload()
                 {
-                    Content = JsonConvert.SerializeObject(item, databaseSettings.JsonSettings),
+                    Content = JsonConvert.SerializeObject(item, DatabaseSettings.JsonSettings),
                     Method = HttpMethod.Post,
                     Path = string.Format("_api/document/{0}/?returnNew=true", collection)
                 };
 
                 var result = await GetResultAsync(payload);
 
-                var json = JsonConvert.DeserializeObject<UpdatedDocument<T>>(result.Content, databaseSettings.JsonSettings);
+                var json = JsonConvert.DeserializeObject<UpdatedDocument<T>>(result.Content, DatabaseSettings.JsonSettings);
                 return json;
             }catch(System.Exception e) {
                 System.Diagnostics.Debug.WriteLine(e.StackTrace);
@@ -501,7 +502,20 @@ namespace BorderEast.ArangoDB.Client.Database
         #endregion
 
         #region internal
-        internal async Task<Result> GetResultAsync(Payload payload) {
+
+        private async Task<List<T>> ExecuteQuery<T>(ArangoQuery<T> query)
+        {
+            var result = await GetResultAsync(query.Payload);
+
+            if (result == null) {
+                return null;
+            }
+
+            var json = JsonConvert.DeserializeObject<AQLResult<T>>(result.Content);
+            return json.Result;
+        }
+
+        private async Task<Result> GetResultAsync(Payload payload) {
 
             // Get connection just before we use it
             IConnection connection = connectionPool.GetConnection();

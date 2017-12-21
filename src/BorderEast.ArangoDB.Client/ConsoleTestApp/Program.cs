@@ -14,16 +14,18 @@ namespace ConsoleTestApp {
         static void Main(string[] args)
         {
             Console.WriteLine(Environment.GetEnvironmentVariable("USERNAME"));
-            ArangoClient.Client().SetDefaultDatabase(new BorderEast.ArangoDB.Client.Database.ClientSettings() {
-                DatabaseName = "_system",
-                Protocol = BorderEast.ArangoDB.Client.Database.ProtocolType.HTTP,
-                ServerAddress = "localhost",
-                ServerPort = 8529,
-                SystemCredential = new System.Net.NetworkCredential("root", Environment.GetEnvironmentVariable("USERNAME")),
-                DatabaseCredential = new System.Net.NetworkCredential("root", Environment.GetEnvironmentVariable("USERNAME")),
-                AutoCreate = true,
+            ArangoClient.Client().SetDefaultDatabase(new BorderEast.ArangoDB.Client.Database.ClientSettings(
+                databaseName: "_system",
+                protocolType: BorderEast.ArangoDB.Client.Database.ProtocolType.HTTP,
+                serverAddress: "localhost",
+                serverPort: 8529,
+                autoCreate: true,
+                isDebug: true, 
+                systemPassword: Environment.GetEnvironmentVariable("USERNAME"),
+                databaseUsername: "root",
+                databasePassword: Environment.GetEnvironmentVariable("USERNAME")
+            ){
                 HTTPClient = new System.Net.Http.HttpClient(),
-                IsDebug = true
             });
 
             var client = ArangoClient.Client();
