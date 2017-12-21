@@ -5,7 +5,6 @@ using BorderEast.ArangoDB.Client.Utils;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Dynamic;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
@@ -40,10 +39,9 @@ namespace BorderEast.ArangoDB.Client.Database
         /// Create a collection based on the passed in dynamic object 
         /// Example: CreateCollection(new { Name = somename}) 
         /// </summary>
-        /// <typeparam name="T"></typeparam>
         /// <param name="parameters"></param>
         /// <returns></returns>
-        public async Task<CollectionResult> CreateCollection<T>(dynamic parameters) {
+        public async Task<CollectionResult> CreateCollection(dynamic parameters) {
 
             var ctype = typeof(ArangoCollection);
             // get settable public properties of the type
@@ -62,22 +60,21 @@ namespace BorderEast.ArangoDB.Client.Database
                 
             }
 
-            return await CreateCollection<CollectionResult>(collection as ArangoCollection);
+            return await CreateCollection(collection as ArangoCollection);
         }
 
         /// <summary>
         /// Create a collection based on the given ArangoCollection
         /// </summary>
-        /// <typeparam name="T"></typeparam>
         /// <param name="collection"></param>
         /// <returns></returns>
-        public async Task<CollectionResult> CreateCollection<T>(ArangoCollection collection) {
+        public async Task<CollectionResult> CreateCollection(ArangoCollection collection) {
 
             Payload payload = new Payload()
             {
                 Content = JsonConvert.SerializeObject(collection, databaseSettings.JsonSettings),
                 Method = HttpMethod.Post,
-                Path = string.Format("_api/collection")
+                Path = "_api/collection"
             };
 
             var result = await GetResultAsync(payload);
@@ -90,7 +87,6 @@ namespace BorderEast.ArangoDB.Client.Database
             return json;
 
         }
-
 
         #endregion
 
@@ -147,11 +143,23 @@ namespace BorderEast.ArangoDB.Client.Database
         /// </summary>
         /// <typeparam name="T">Entity type</typeparam>
         /// <returns>List of entity keys</returns>
-        public async Task<List<string>> GetAllKeysAsync<T>() {
-            return await Query<string>("for x in @@col return x._key",
-                new Dictionary<string, object> { { "@col", DynamicUtil.GetTypeName(typeof(T)) } }).ToListAsync();
+        public async Task<List<string>> GetAllKeysAsync<T>()
+        {
+            return await GetAllKeysAsync(DynamicUtil.GetTypeName(typeof(T)));
         }
 
+        /// <summary>
+        /// Get all keys of a given entity
+        /// </summary>
+        /// <param name="collection">Collection</param>
+        /// <returns>List of entity keys</returns>
+        public async Task<List<string>> GetAllKeysAsync(string collection)
+        {
+            if (string.IsNullOrWhiteSpace(collection))
+                throw new ArgumentException("Value cannot be null or whitespace.", nameof(collection));
+            return await Query<string>("for x in @@col return x._key",
+                new Dictionary<string, object> { { "@col", collection } }).ToListAsync();
+        }
 
         /// <summary>
         /// Get entities by example
@@ -159,14 +167,32 @@ namespace BorderEast.ArangoDB.Client.Database
         /// <typeparam name="T">Entity type</typeparam>
         /// <param name="parameters">Dynamic object of parmeters, use JSON names (_key instead of Key)</param>
         /// <returns>List of entities</returns>
-        public async Task<List<T>> GetByExampleAsync<T>(dynamic parameters) {
+        public async Task<List<T>> GetByExampleAsync<T>(dynamic parameters)
+        {
+            return await GetByExampleAsync<T>(parameters, DynamicUtil.GetTypeName(typeof(T)));
+        }
+
+        /// <summary>
+        /// Get entities by example
+        /// </summary>
+        /// <typeparam name="T">Entity type</typeparam>
+        /// <param name="parameters">Dynamic object of parmeters, use JSON names (_key instead of Key)</param>
+        /// <param name="collection">The collection to query</param>
+        /// <returns>List of entities</returns>
+        public async Task<List<T>> GetByExampleAsync<T>(dynamic parameters, string collection)
+        {
+            if (parameters == null) throw new ArgumentNullException(nameof(parameters));
+            if (string.IsNullOrWhiteSpace(collection))
+                throw new ArgumentException("Value cannot be null or whitespace.", nameof(collection));
+
             Type type = typeof(T);
             ForeignKey fk = HasForeignKey(type);
 
-            var q = BuildFKQuery(fk, type, parameters);
+            var q = BuildFKQuery(fk, collection, parameters);
             return await Query<T>(q).ToListAsync();
-
         }
+
+
 
         /// <summary>
         /// Get entity by key
@@ -178,10 +204,29 @@ namespace BorderEast.ArangoDB.Client.Database
             Type type = typeof(T);
             var typeName = DynamicUtil.GetTypeName(type);
 
+            return await GetByKeyAsync<T>(key, typeName);
+        }
+
+        /// <summary>
+        /// Get entity by key
+        /// </summary>
+        /// <typeparam name="T">Entity type</typeparam>
+        /// <param name="key">Key of entity</param>
+        /// <param name="collection">The collection to query</param>
+        /// <returns>Single entity</returns>
+        public async Task<T> GetByKeyAsync<T>(string key, string collection) {
+            if (string.IsNullOrWhiteSpace(key))
+                throw new ArgumentException("message", nameof(key));
+            if (string.IsNullOrWhiteSpace(collection))
+                throw new ArgumentException("Value cannot be null or whitespace.", nameof(collection));
+
+            Type type = typeof(T);
+            var typeName = DynamicUtil.GetTypeName(type);
+
             ForeignKey fk = HasForeignKey(type);
 
             if (fk.IsForeignKey) {
-                var q = BuildFKQuery(fk, type, new { _key = key });
+                var q = BuildFKQuery(fk, collection, new { _key = key });
 
                 var r = await Query<T>(q).ToListAsync();
                 return r.FirstOrDefault();
@@ -203,6 +248,7 @@ namespace BorderEast.ArangoDB.Client.Database
             return json;
         }
 
+
         /// <summary>
         /// Get all entities of given type
         /// </summary>
@@ -210,23 +256,39 @@ namespace BorderEast.ArangoDB.Client.Database
         /// <returns>List of entities</returns>
         public async Task<List<T>> GetAllAsync<T>() {
             var typeName = DynamicUtil.GetTypeName(typeof(T));
+            return await GetAllAsync<T>(typeName);
+        }
+
+        /// <summary>
+        /// Get all entities of given type
+        /// </summary>
+        /// <typeparam name="T">Entity type</typeparam>
+        /// <param name="collection">The collection to query</param>
+        /// <returns>List of entities</returns>
+        public async Task<List<T>> GetAllAsync<T>(string collection) {
+            if (string.IsNullOrWhiteSpace(collection))
+                throw new ArgumentException("Value cannot be null or whitespace.", nameof(collection));
 
             ForeignKey fk = HasForeignKey(typeof(T));
 
             if (fk.IsForeignKey) {
-                var q = BuildFKQuery(fk, typeof(T));
+                var q = BuildFKQuery(fk, collection);
 
                 return await Query<T>(q).ToListAsync();
             }
 
-            return await Query<T>(string.Format("FOR x IN {0} RETURN x", typeName)).ToListAsync();
-            //new Dictionary<string, object>{{ "col", typeName }}).ToListAsync();
+            return await Query<T>(string.Format("FOR x IN {0} RETURN x", collection)).ToListAsync();
         }
+
         #endregion
 
         #region utility
 
-        private AQLQuery BuildFKQuery(ForeignKey fk, Type baseType, dynamic parameters = null) {
+        private AQLQuery BuildFKQuery(ForeignKey fk, string collection, dynamic parameters = null) {
+            if (fk == null) throw new ArgumentNullException(nameof(fk));
+            if (string.IsNullOrWhiteSpace(collection))
+                throw new ArgumentException("Value cannot be null or whitespace.", nameof(collection));
+
             var q = new AQLQuery();
             var parms = new Dictionary<string, object>();
             var sb = new StringBuilder();
@@ -236,8 +298,7 @@ namespace BorderEast.ArangoDB.Client.Database
             }
             
 
-            sb.Append("FOR x1 IN " + DynamicUtil.GetTypeName(baseType));
-            // parms.Add("@col", baseType.Name);
+            sb.Append($"FOR x1 IN {collection}");
 
             if (fk.IsForeignKey) {
                 for (var i = 0; i < fk.ForeignKeyTypes.Count; i++) {
@@ -284,6 +345,7 @@ namespace BorderEast.ArangoDB.Client.Database
             return q;
         }
 
+        // TODO: implement for named collections
         private ForeignKey HasForeignKey(Type t) {
             ForeignKey fk = new ForeignKey();
             // get custom CollectionAttribute
@@ -323,13 +385,31 @@ namespace BorderEast.ArangoDB.Client.Database
         public async Task<UpdatedDocument<T>> UpdateAsync<T>(string key, T item) {
             var typeName = DynamicUtil.GetTypeName(typeof(T));
 
+            return await UpdateAsync(key, item, typeName);
+        }
+
+        /// <summary>
+        /// Update an entity
+        /// </summary>
+        /// <typeparam name="T">Entity type</typeparam>
+        /// <param name="key">Key of entity</param>
+        /// <param name="item">Entity with all or partial properties</param>
+        /// <param name="collection">The collection in which the entity is stored</param>
+        /// <returns>UpdatedDocument with complete new Entity</returns>
+        public async Task<UpdatedDocument<T>> UpdateAsync<T>(string key, T item, string collection) {
+            if (item == null) throw new ArgumentNullException(nameof(item));
+            if (string.IsNullOrWhiteSpace(key))
+                throw new ArgumentException("Value cannot be null or whitespace.", nameof(key));
+            if (string.IsNullOrWhiteSpace(collection))
+                throw new ArgumentException("Value cannot be null or whitespace.", nameof(collection));
+
             HttpMethod method = new HttpMethod("PATCH");
 
             Payload payload = new Payload()
             {
                 Content = JsonConvert.SerializeObject(item, databaseSettings.JsonSettings),
                 Method = method,
-                Path = string.Format("_api/document/{0}/{1}?mergeObjects=false&returnNew=true", typeName, key)
+                Path = string.Format("_api/document/{0}/{1}?mergeObjects=false&returnNew=true", collection, key)
             };
 
             var result = await GetResultAsync(payload);
@@ -347,23 +427,31 @@ namespace BorderEast.ArangoDB.Client.Database
         public async Task<bool> DeleteAsync<T>(string key) {
             var typeName = DynamicUtil.GetTypeName(typeof(T));
 
+            return await DeleteAsync(key, typeName);
+        }
+
+        /// <summary>
+        /// Delete an entity
+        /// </summary>
+        /// <param name="key">Entity key</param>
+        /// <param name="collection">The collection to delete the entity from</param>
+        /// <returns>True for success, false on error</returns>
+        public async Task<bool> DeleteAsync(string key, string collection) {
+            if (key == null) throw new ArgumentNullException(nameof(key));
+            if (string.IsNullOrWhiteSpace(collection))
+                throw new ArgumentException("Value cannot be null or whitespace.", nameof(collection));
+
             Payload payload = new Payload()
             {
                 Content = string.Empty,
                 Method = HttpMethod.Delete,
-                Path = string.Format("_api/document/{0}/{1}?silent=true", typeName, key)
+                Path = string.Format("_api/document/{0}/{1}?silent=true", collection, key)
             };
 
             var result = await GetResultAsync(payload);
 
-            if(result.StatusCode == System.Net.HttpStatusCode.OK || 
-                result.StatusCode == System.Net.HttpStatusCode.Accepted) 
-            {
-                return true;
-            } else {
-                return false;
-            }
-                
+            return result.StatusCode == System.Net.HttpStatusCode.OK || 
+                   result.StatusCode == System.Net.HttpStatusCode.Accepted;
         }
 
         /// <summary>
@@ -372,15 +460,31 @@ namespace BorderEast.ArangoDB.Client.Database
         /// <typeparam name="T">Entity type</typeparam>
         /// <param name="item">Entity to insert</param>
         /// <returns>UpdatedDocument with new entity</returns>
-        public async Task<UpdatedDocument<T>> InsertAsync<T>(T item) {
-            try {
-                var typeName = DynamicUtil.GetTypeName(typeof(T));
+        public async Task<UpdatedDocument<T>> InsertAsync<T>(T item)
+        {
+            var typeName = DynamicUtil.GetTypeName(typeof(T));
+            return await InsertAsync(item, typeName);
+        }
 
+        /// <summary>
+        /// Insert entity
+        /// </summary>
+        /// <typeparam name="T">Entity type</typeparam>
+        /// <param name="item">Entity to insert</param>
+        /// <param name="collection">The collection to insert the entity into</param>
+        /// <returns></returns>
+        public async Task<UpdatedDocument<T>> InsertAsync<T>(T item, string collection)
+        {
+            if (item == null) throw new ArgumentNullException(nameof(item));
+            if (string.IsNullOrWhiteSpace(collection))
+                throw new ArgumentException("Value cannot be null or whitespace.", nameof(collection));
+
+            try {
                 Payload payload = new Payload()
                 {
                     Content = JsonConvert.SerializeObject(item, databaseSettings.JsonSettings),
                     Method = HttpMethod.Post,
-                    Path = string.Format("_api/document/{0}/?returnNew=true", typeName)
+                    Path = string.Format("_api/document/{0}/?returnNew=true", collection)
                 };
 
                 var result = await GetResultAsync(payload);
@@ -392,6 +496,7 @@ namespace BorderEast.ArangoDB.Client.Database
                 return null;
             }
         }
+
 
         #endregion
 
